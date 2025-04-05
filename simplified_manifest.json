@@ -1,0 +1,18 @@
+{
+  "name": "Coze工作流API调用扩展",
+  "version": "1.0.0",
+  "description": "调用Coze工作流API的Edge浏览器扩展",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://api.coze.cn/*"
+  ]
+} 
