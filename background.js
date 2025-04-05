@@ -11,7 +11,7 @@
 const COZE_API_CONFIG = {
   url: 'https://api.coze.cn/v1/workflow/run',
   headers: {
-    'Authorization': 'Bearer pat_Gh8ZaR7fj7EbGSAzSCXhcSbl11JE5fjuUU6BDaeTfAffUavL9OnPBlXHilRvJ4bR',
+    'Authorization': 'Bearer ***',
     'Content-Type': 'application/json'
   },
   workflowId: '7489832031674204211'
