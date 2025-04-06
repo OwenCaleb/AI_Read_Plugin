@@ -11,7 +11,7 @@
 const COZE_API_CONFIG = {
   url: 'https://api.coze.cn/v1/workflow/stream_run', // 修改为流式API接口
   headers: {
-    'Authorization': 'Bearer pat_C43TGnOQyJa5MGC8WBVa2ViAvivmKUF6mRezemey9SOFnCkV7WGTIkqeVK6dY7I7', // 修改为您的实际token
+    'Authorization': 'Bearer pat_C43TGnOQyJa5MGC8WBVa2ViAvivmKUF6mRezemey9SOFnCkV7WGTIkqeVK6dY7I7', // 根据官方示例，正确格式应为"Bearer pat_"开头
     'Content-Type': 'application/json'
   },
   workflowId: '7489832031674204211' // 修改为您的实际workflow_id
@@ -58,6 +58,9 @@ async function callCozeWorkflow(articleUrl, context = {}) {
       workflow_id: COZE_API_CONFIG.workflowId,
       parameters: {
         article_url: articleUrl
+        // 如果工作流需要其他参数，可以在这里添加
+        // user_id: "12345", // 示例参数
+        // user_name: "User" // 示例参数
       }
     };
     
@@ -97,23 +100,6 @@ async function callCozeWorkflow(articleUrl, context = {}) {
         let isDone = false;
         let accumulatedChunks = [];
         
-        // 创建中间步骤的通知函数，用于发送流式更新
-        const notifyProgress = (chunk) => {
-          if (chunk && chunk.length > 0) {
-            try {
-              // 尝试解析JSON
-              const chunkData = JSON.parse(chunk);
-              // 通知前端更新
-              chrome.runtime.sendMessage({
-                action: 'streamUpdate',
-                data: chunkData
-              });
-            } catch (e) {
-              console.warn('无法解析流式数据片段:', e);
-            }
-          }
-        };
-        
         // 读取流式数据
         while (!isDone) {
           const { done, value } = await reader.read();
@@ -128,27 +114,100 @@ async function callCozeWorkflow(articleUrl, context = {}) {
           accumulatedChunks.push(chunk);
           fullResponseText += chunk;
           
-          // 尝试提取当前批次数据中的完整JSON对象
+          // 尝试提取当前批次数据中的完整事件
           try {
-            // 分割数据流，处理可能包含多个JSON对象的情况
-            const lines = fullResponseText.split('\n');
-            for (let i = 0; i < lines.length - 1; i++) {
-              const line = lines[i].trim();
-              if (line) {
-                notifyProgress(line);
+            // 解析SSE格式的事件流
+            // SSE格式通常是 "id: X\nevent: Y\ndata: Z\n\n"
+            const events = fullResponseText.split(/\n\n/);
+            
+            // 处理除最后一个可能不完整的事件外的所有事件
+            for (let i = 0; i < events.length - 1; i++) {
+              const event = events[i].trim();
+              if (!event) continue;
+              
+              // 提取data字段
+              const dataMatch = event.match(/^data: (.+)$/m);
+              if (dataMatch && dataMatch[1]) {
+                try {
+                  // 解析JSON数据
+                  const eventData = JSON.parse(dataMatch[1]);
+                  
+                  // 尝试解析嵌套的JSON结构
+                  if (eventData && typeof eventData.data === 'string' && 
+                      (eventData.data.includes('{') || eventData.data.includes('}'))) {
+                    try {
+                      // 尝试解析data字段中的JSON
+                      const innerData = JSON.parse(eventData.data);
+                      // 如果成功解析，将解析后的对象作为data字段的值
+                      eventData.parsedData = innerData;
+                      console.log('解析到嵌套JSON数据:', innerData);
+                    } catch (innerJsonError) {
+                      console.warn('内部JSON解析失败，使用原始data字段');
+                    }
+                  }
+                  
+                  // 通知前端更新，直接传递解析后的data对象
+                  chrome.runtime.sendMessage({
+                    action: 'streamUpdate',
+                    data: eventData
+                  });
+                  
+                  console.log('发送流式更新:', eventData);
+                } catch (jsonError) {
+                  console.warn('解析事件JSON数据失败:', jsonError);
+                }
               }
             }
-            // 保留最后一行，可能是不完整的
-            fullResponseText = lines[lines.length - 1];
+            
+            // 保留最后一个可能不完整的事件
+            const lastEvent = events[events.length - 1];
+            fullResponseText = lastEvent ? lastEvent : '';
+            
           } catch (e) {
-            console.warn('处理数据流时出错:', e);
+            console.warn('处理数据流事件时出错:', e);
           }
         }
         
         // 处理最后可能剩余的数据
         if (fullResponseText && fullResponseText.trim()) {
-          notifyProgress(fullResponseText.trim());
+          // 检查是否是完整的事件
+          const dataMatch = fullResponseText.match(/^data: (.+)$/m);
+          if (dataMatch && dataMatch[1]) {
+            try {
+              // 解析JSON数据
+              const eventData = JSON.parse(dataMatch[1]);
+              
+              // 尝试解析嵌套的JSON结构
+              if (eventData && typeof eventData.data === 'string' && 
+                  (eventData.data.includes('{') || eventData.data.includes('}'))) {
+                try {
+                  // 尝试解析data字段中的JSON
+                  const innerData = JSON.parse(eventData.data);
+                  // 如果成功解析，将解析后的对象作为data字段的值
+                  eventData.parsedData = innerData;
+                  console.log('解析到嵌套JSON数据:', innerData);
+                } catch (innerJsonError) {
+                  console.warn('内部JSON解析失败，使用原始data字段');
+                }
+              }
+              
+              // 通知前端更新
+              chrome.runtime.sendMessage({
+                action: 'streamUpdate',
+                data: eventData
+              });
+              
+              console.log('发送最终流式更新:', eventData);
+            } catch (jsonError) {
+              console.warn('解析最终事件JSON数据失败:', jsonError);
+            }
+          }
         }
+        
+        // 通知前端流式处理已完成
+        chrome.runtime.sendMessage({
+          action: 'streamComplete'
+        });
         
         // 返回完整的响应
         const completeResponse = accumulatedChunks.join('');

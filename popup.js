@@ -211,6 +211,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (message.action === 'streamUpdate' && message.data) {
       // 处理流式数据更新
       handleStreamUpdate(message.data);
+    } else if (message.action === 'streamComplete') {
+      // 流式处理完成
+      console.log('流式处理完成');
+      showStreamingStatus(false);
     }
   });
   
@@ -222,14 +226,61 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       console.log('收到流式更新:', data);
       
-      // 设置流式状态
-      if (!isStreaming) {
-        isStreaming = true;
-        showStreamingStatus(true);
+      // 处理流式响应格式
+      let contentChunk = '';
+      
+      // 检查是否是API返回的流式格式
+      if (data && typeof data === 'object') {
+        // 首先检查是否有解析好的嵌套数据
+        if (data.parsedData) {
+          // 处理已解析的嵌套JSON
+          const parsedData = data.parsedData;
+          if (parsedData.content_type === 1 && typeof parsedData.data === 'string') {
+            contentChunk = parsedData.data;
+            console.log('从parsedData中提取content_type=1格式的data:', contentChunk);
+          } else if (parsedData.data) {
+            contentChunk = typeof parsedData.data === 'string' ? parsedData.data : JSON.stringify(parsedData.data);
+            console.log('从parsedData中提取data字段:', contentChunk);
+          }
+        }
+        // 如果parsedData没有提供有效内容，继续检查content字段
+        else if (data.content) {
+          // 直接使用content字段的内容
+          contentChunk = data.content;
+          console.log('从content字段提取到内容片段:', contentChunk);
+        } 
+        // 如果数据具有data字段，可能是嵌套结构
+        else if (data.data) {
+          try {
+            // 检查data字段是否是字符串形式的JSON
+            if (typeof data.data === 'string') {
+              const innerData = JSON.parse(data.data);
+              if (innerData && innerData.data) {
+                // 提取内嵌JSON中的data字段
+                contentChunk = innerData.data;
+                console.log('从嵌套data.data字段提取到内容:', contentChunk);
+              } else if (innerData && innerData.content) {
+                // 或者content字段
+                contentChunk = innerData.content;
+                console.log('从嵌套data.content字段提取到内容:', contentChunk);
+              }
+            } else if (typeof data.data === 'object' && data.data.data) {
+              // 直接嵌套的对象结构
+              contentChunk = data.data.data;
+              console.log('从直接嵌套的data.data字段提取到内容:', contentChunk);
+            }
+          } catch (e) {
+            console.warn('解析嵌套JSON出错:', e);
+            // 如果解析失败，尝试直接使用data字段
+            contentChunk = typeof data.data === 'string' ? data.data : '';
+          }
+        }
       }
       
-      // 提取内容
-      let contentChunk = extractDataContentOnly(data);
+      // 如果上述方法都未能提取内容，尝试使用通用提取方法
+      if (!contentChunk) {
+        contentChunk = extractDataContentOnly(data);
+      }
       
       if (contentChunk) {
         // 累积内容
@@ -244,6 +295,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 隐藏加载状态，因为我们已经开始显示内容
         loadingElem.style.display = 'none';
+        // 显示流式状态
+        showStreamingStatus(true);
       }
     } catch (error) {
       console.error('处理流式更新出错:', error);

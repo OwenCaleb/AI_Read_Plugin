@@ -18,7 +18,7 @@ process.stdout.setEncoding('utf8');
 const COZE_API_CONFIG = {
   url: 'https://api.coze.cn/v1/workflow/run',
   headers: {
-    'Authorization': 'pat_C43TGnOQyJa5MGC8WBVa2ViAvivmKUF6mRezemey9SOFnCkV7WGTIkqeVK6dY7I7',
+    'Authorization': 'Bearer pat_C43TGnOQyJa5MGC8WBVa2ViAvivmKUF6mRezemey9SOFnCkV7WGTIkqeVK6dY7I7',
     'Content-Type': 'application/json'
   },
   workflowId: '7489832031674204211'
