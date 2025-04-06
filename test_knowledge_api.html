@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库API测试</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    input, textarea, button {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 10px;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #result {
+      margin-top: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      white-space: pre-wrap;
+      background-color: #f5f5f5;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .success {
+      color: green;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>Coze知识库API测试工具</h1>
+  
+  <div class="container">
+    <div class="form-group">
+      <label for="knowledge-id">知识库ID:</label>
+      <input type="text" id="knowledge-id" value="7490072439570546722">
+    </div>
+    
+    <div class="form-group">
+      <label for="auth-token">授权Token:</label>
+      <input type="text" id="auth-token" value="pat_T28phnNmB3HXWuhSUIfMJI5odyE5g4jzVklTTO28RH8lf0Jneb6djeKSIvhTwZ3M">
+    </div>
+    
+    <div class="form-group">
+      <label for="url">要保存的URL:</label>
+      <input type="text" id="url" value="https://news.qq.com/rain/a/20250328A082D300">
+    </div>
+    
+    <div class="form-group">
+      <label for="api-url">API地址:</label>
+      <input type="text" id="api-url" value="https://api.coze.cn/open_api/knowledge/document/create">
+    </div>
+    
+    <button id="test-btn">测试保存到知识库</button>
+  </div>
+  
+  <div id="result">
+    <!-- 测试结果将显示在这里 -->
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const testBtn = document.getElementById('test-btn');
+      const resultArea = document.getElementById('result');
+      
+      testBtn.addEventListener('click', async function() {
+        try {
+          resultArea.innerHTML = '<p>正在测试API，请稍候...</p>';
+          
+          const knowledgeId = document.getElementById('knowledge-id').value.trim();
+          const authToken = document.getElementById('auth-token').value.trim();
+          const url = document.getElementById('url').value.trim();
+          const apiUrl = document.getElementById('api-url').value.trim();
+          
+          if (!knowledgeId || !authToken || !url || !apiUrl) {
+            resultArea.innerHTML = '<p class="error">请填写所有必填字段</p>';
+            return;
+          }
+          
+          // 显示测试信息
+          resultArea.innerHTML = `
+            <p>===== API测试信息 =====</p>
+            <p>API地址: ${apiUrl}</p>
+            <p>知识库ID: ${knowledgeId}</p>
+            <p>授权Token: ${authToken.substring(0, 10)}...</p>
+            <p>URL: ${url}</p>
+            <p>=====================</p>
+            <p>正在发送请求...</p>
+          `;
+          
+          // 格式化请求数据
+          const requestData = {
+            "dataset_id": knowledgeId,
+            "document_bases": [
+              {
+                "name": `网页内容: ${url}`,
+                "source_info": {
+                  "web_url": url,
+                  "document_source": 1
+                },
+                "update_rule": {
+                  "update_type": 1, 
+                  "update_interval": 24
+                }
+              }
+            ],
+            "chunk_strategy": {
+              "separator": "\n\n", 
+              "max_tokens": 800,
+              "remove_extra_spaces": false,
+              "remove_urls_emails": false,
+              "chunk_type": 1
+            }
+          };
+          
+          // 显示请求数据
+          resultArea.innerHTML += `<p>请求数据:</p><pre>${JSON.stringify(requestData, null, 2)}</pre>`;
+          
+          // 发送请求
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+              'Agw-Js-Conv': 'str'
+            },
+            body: JSON.stringify(requestData)
+          });
+          
+          // 显示响应状态
+          resultArea.innerHTML += `<p>响应状态: ${response.status} ${response.statusText}</p>`;
+          
+          // 获取响应文本
+          const responseText = await response.text();
+          
+          // 解析JSON（如果可能）
+          try {
+            const responseData = JSON.parse(responseText);
+            resultArea.innerHTML += `<p>响应数据:</p><pre>${JSON.stringify(responseData, null, 2)}</pre>`;
+            
+            if (response.ok) {
+              resultArea.innerHTML += `<p class="success">API调用成功!</p>`;
+            } else {
+              resultArea.innerHTML += `<p class="error">API调用失败: ${response.status} ${response.statusText}</p>`;
+            }
+          } catch (e) {
+            resultArea.innerHTML += `<p>原始响应:</p><pre>${responseText}</pre>`;
+            resultArea.innerHTML += `<p class="error">解析响应失败: ${e.message}</p>`;
+          }
+          
+        } catch (error) {
+          resultArea.innerHTML = `<p class="error">测试出错: ${error.message}</p>`;
+          console.error('测试过程中出错:', error);
+        }
+      });
+    });
+  </script>
+</body>
+</html> 
